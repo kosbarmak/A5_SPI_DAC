@@ -152,10 +152,18 @@ void SPI_init() {
 	// AF=5=SPI for PA5 and PA7
 	GPIOA->AFR[0] &= ~(GPIO_AFRL_AFSEL5_Msk | GPIO_AFRL_AFSEL7_Msk);
 	GPIOA->AFR[0] |= GPIO_AF5_SPI1 << GPIO_AFRL_AFSEL5_Pos;
-	GPIOA->AFR[0] |= GPIO_AF5_SPI1 << GPIO_AFRL_AFSEL5_Pos;
+	GPIOA->AFR[0] |= GPIO_AF5_SPI1 << GPIO_AFRL_AFSEL7_Pos;
 
+	SPI1->CR1 |= SPI_CR1_MSTR;
 
+	// baud rate calculation
+	SPI1->CR1 &= ~(SPI_CR1_BR_Msk);
+	SPI1->CR1 |= 1 << SPI_CR1_BR_Pos;
 
+	// CPOL = 0 = idle low
+	SPI1->CR1 &= ~(SPI_CR1_CPOL);	
+
+	// CPHA = 0 = rising edge sample
 }
 
 void SPI_send_data(uint16_t value) {
