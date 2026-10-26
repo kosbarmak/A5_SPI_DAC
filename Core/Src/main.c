@@ -164,6 +164,21 @@ void SPI_init() {
 	SPI1->CR1 &= ~(SPI_CR1_CPOL);	
 
 	// CPHA = 0 = rising edge sample
+	SPI1->CR1 &= ~(SPI_CR1_CPHA);	
+
+	// LSBFIRST = 0 => Most Significant Bit first
+	SPI1->CR1 &= ~(SPI_CR1_LSBFIRST);	
+
+	// SSM = 1 = NSS is managed by software through SSI instead of hardware
+	SPI1->CR1 |= SPI_CR1_SSM;
+
+	// SSI = 1 = internal NSS kept high in controller mode
+	SPI1->CR1 |= SPI_CR1_SSI;
+
+	// SPE = 1 = SPI enabled
+	SPI1->CR1 |= SPI_CR1_SPE;
+
+	// TODO: configure CR2
 }
 
 void SPI_send_data(uint16_t value) {
