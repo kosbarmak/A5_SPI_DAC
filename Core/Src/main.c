@@ -12,18 +12,13 @@
 #include "stm32l476xx.h"
 #include "stm32l4xx_hal.h"
 #include "stm32l4xx_hal_gpio.h"
+#include "stm32l4xx_hal_gpio_ex.h"
 #include <stddef.h>
 #include <stdint.h>
 
 typedef enum { ALTERNATIVE = 2 } GpioMode;
 
 typedef enum GpioState { HIGH = 1, LOW = 0 } GpioState;
-
-void init()
-{
-	// gpio_init();
-	// LCD_init(true, false, true, true, true, false);
-}
 
 // configure microcontroller clock output on PA8
 void set_PA8_clock_MSI()
@@ -139,6 +134,48 @@ void set_PA0(GpioState state)
 		GPIOA->BSRR = GPIO_BSRR_BS0;
 	else
 		GPIOA->BSRR = GPIO_BSRR_BR0;
+}
+
+void SPI_init() {
+	// GPIO clocks
+	RCC->AHB2ENR |= RCC_AHB2ENR_GPIOAEN;
+	RCC->AHB2ENR |= RCC_AHB2ENR_GPIOBEN;
+
+	// SPI clock
+	RCC->APB2ENR |= RCC_APB2ENR_SPI1EN;
+	
+	// PA5 and PA7 alternative mode
+	GPIOA->MODER &= ~(GPIO_MODER_MODE5_Msk | GPIO_MODER_MODE7_Msk);
+	GPIOA->MODER |= 0b10 << GPIO_MODER_MODE5_Pos;
+	GPIOA->MODER |= 0b10 << GPIO_MODER_MODE7_Pos;
+
+	// AF=5=SPI for PA5 and PA7
+	GPIOA->AFR[0] &= ~(GPIO_AFRL_AFSEL5_Msk | GPIO_AFRL_AFSEL7_Msk);
+	GPIOA->AFR[0] |= GPIO_AF5_SPI1 << GPIO_AFRL_AFSEL5_Pos;
+	GPIOA->AFR[0] |= GPIO_AF5_SPI1 << GPIO_AFRL_AFSEL5_Pos;
+
+
+
+}
+
+void SPI_send_data(uint16_t value) {
+	// header may be different for our purposes
+	uint16_t command = 0x3 << 12 | (value & 0x0FFF);
+
+	// CS low = begin transmission
+	// PB6 is CS in STM32
+	// BSRR modifies ODR
+	GPIOB->BSRR = GPIO_BSRR_BR6;
+
+	// while SPI is busy
+	while (!(SPI1->SR & SPI_SR_TXE));
+
+	SPI1->DR = command;
+
+	while(SPI1->SR & SPI_SR_BSY);
+
+	// B6 high = CS high = end transmission
+	GPIOB->BSRR = GPIO_BSRR_BS6;
 }
 
 int main()
