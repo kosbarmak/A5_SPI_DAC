@@ -136,14 +136,15 @@ void set_PA0(GpioState state)
 		GPIOA->BSRR = GPIO_BSRR_BR0;
 }
 
-void SPI_init() {
+void SPI_init()
+{
 	// GPIO clocks
 	RCC->AHB2ENR |= RCC_AHB2ENR_GPIOAEN;
 	RCC->AHB2ENR |= RCC_AHB2ENR_GPIOBEN;
 
 	// SPI clock
 	RCC->APB2ENR |= RCC_APB2ENR_SPI1EN;
-	
+
 	// PA5 and PA7 alternative mode
 	GPIOA->MODER &= ~(GPIO_MODER_MODE5_Msk | GPIO_MODER_MODE7_Msk);
 	GPIOA->MODER |= 0b10 << GPIO_MODER_MODE5_Pos;
@@ -154,6 +155,29 @@ void SPI_init() {
 	GPIOA->AFR[0] |= GPIO_AF5_SPI1 << GPIO_AFRL_AFSEL5_Pos;
 	GPIOA->AFR[0] |= GPIO_AF5_SPI1 << GPIO_AFRL_AFSEL7_Pos;
 
+	GPIOB->MODER &= ~(GPIO_MODER_MODE6_Msk);
+	GPIOB->MODER |= (0b01 << GPIO_MODER_MODE6_Pos);
+
+	// Enable GPIOB clock (if not already enabled)
+	RCC->AHB2ENR |= RCC_AHB2ENR_GPIOBEN;
+
+	// PB6: General-purpose output (01)
+	GPIOB->MODER &= ~(GPIO_MODER_MODE6_Msk);
+	GPIOB->MODER |= (0b01 << GPIO_MODER_MODE6_Pos);
+
+	// PB6: Push-pull output (0)
+	GPIOB->OTYPER &= ~(1U << 6);
+
+	// PB6: No pull-up or pull-down (00)
+	GPIOB->PUPDR &= ~(GPIO_PUPDR_PUPD6_Msk);
+
+	// PB6: Low-speed output (00)
+	GPIOB->OSPEEDR &= ~(GPIO_OSPEEDR_OSPEED6_Msk); // ?
+
+
+
+	// ----
+	// CR1 config
 	SPI1->CR1 |= SPI_CR1_MSTR;
 
 	// baud rate calculation
@@ -161,13 +185,13 @@ void SPI_init() {
 	SPI1->CR1 |= 1 << SPI_CR1_BR_Pos;
 
 	// CPOL = 0 = idle low
-	SPI1->CR1 &= ~(SPI_CR1_CPOL);	
+	SPI1->CR1 &= ~(SPI_CR1_CPOL);
 
 	// CPHA = 0 = rising edge sample
-	SPI1->CR1 &= ~(SPI_CR1_CPHA);	
+	SPI1->CR1 &= ~(SPI_CR1_CPHA);
 
 	// LSBFIRST = 0 => Most Significant Bit first
-	SPI1->CR1 &= ~(SPI_CR1_LSBFIRST);	
+	SPI1->CR1 &= ~(SPI_CR1_LSBFIRST);
 
 	// SSM = 1 = NSS is managed by software through SSI instead of hardware
 	SPI1->CR1 |= SPI_CR1_SSM;
@@ -178,11 +202,25 @@ void SPI_init() {
 	// SPE = 1 = SPI enabled
 	SPI1->CR1 |= SPI_CR1_SPE;
 
-	// TODO: configure CR2
+	// ------
+	// configure CR2
+
+	// 16 bit frame
+	SPI1->CR2 &= ~SPI_CR2_DS_Msk;
+	SPI1->CR2 |= (0b1111 << SPI_CR2_DS_Pos);
 }
 
-void SPI_send_data(uint16_t value) {
-	// header may be different for our purposes
+void SPI_send_data(uint16_t value)
+{
+	// header may be different depending on the target
+
+	// A/B = 0 = DAC A
+	// BUF = 0 = unbuffered VREF
+	// GA = 1 = 1x gain
+	// SHDN = 1 enable output
+
+	// == 0b0011
+
 	uint16_t command = 0x3 << 12 | (value & 0x0FFF);
 
 	// CS low = begin transmission
@@ -191,11 +229,13 @@ void SPI_send_data(uint16_t value) {
 	GPIOB->BSRR = GPIO_BSRR_BR6;
 
 	// while SPI is busy
-	while (!(SPI1->SR & SPI_SR_TXE));
+	while (!(SPI1->SR & SPI_SR_TXE))
+		;
 
 	SPI1->DR = command;
 
-	while(SPI1->SR & SPI_SR_BSY);
+	while (SPI1->SR & SPI_SR_BSY)
+		;
 
 	// B6 high = CS high = end transmission
 	GPIOB->BSRR = GPIO_BSRR_BS6;
@@ -204,39 +244,40 @@ void SPI_send_data(uint16_t value) {
 int main()
 {
 	HAL_Init();
-	set_PA8_clock_MSI(); // preserve existing clock output
-	set_PA0_wave_output();
-	TIM2_init();
+
+	SPI_init();
 
 	// blink the builtin LED to check that the program goes through
 	{
+		// setup
 		RCC->AHB2ENR |= RCC_AHB2ENR_GPIOAEN;
 		GPIOA->MODER &= ~GPIO_MODER_MODE5;
 		GPIOA->MODER |= GPIO_MODER_MODE5_0;
+	}
 
-		while (true) {
-			GPIOA->ODR ^= GPIO_ODR_OD5;
-			HAL_Delay(1000);
-		}
+	while (true) {
+		GPIOA->ODR ^= GPIO_ODR_OD5;
+		SPI_send_data(0b1010 1010 1010);
+		HAL_Delay(1000);
 	}
 }
 
-void TIM2_IRQHandler()
-{
-	if (TIM2->SR & TIM_SR_UIF) {
-		set_PA0(HIGH);
-
-		// always clear flag
-		TIM2->SR &= ~(TIM_SR_UIF);
-
-		return;
-	}
-
-	if (TIM2->SR & TIM_SR_CC1IF) {
-		set_PA0(LOW);
-
-		// clear flag
-		TIM2->SR &= ~(TIM_SR_CC1IF);
-		return;
-	}
-}
+// void TIM2_IRQHandler()
+// {
+// 	if (TIM2->SR & TIM_SR_UIF) {
+// 		set_PA0(HIGH);
+//
+// 		// always clear flag
+// 		TIM2->SR &= ~(TIM_SR_UIF);
+//
+// 		return;
+// 	}
+//
+// 	if (TIM2->SR & TIM_SR_CC1IF) {
+// 		set_PA0(LOW);
+//
+// 		// clear flag
+// 		TIM2->SR &= ~(TIM_SR_CC1IF);
+// 		return;
+// 	}
+// }
