@@ -1,7 +1,7 @@
 /* CPE 3160
  * John Oliver
  *
- * A4 - Clocks and Timers
+ * A5 - SPI Digital Analog Converter
  * Chris Amey and Alan Kusparmakov
  *
  * Analog Discovery Reading:
@@ -239,6 +239,25 @@ void SPI_send_data(uint16_t value)
 
 	// B6 high = CS high = end transmission
 	GPIOB->BSRR = GPIO_BSRR_BS6;
+}
+
+uint16_t SPI_volt_convert(float voltOut) {
+    //Calculate the output voltage
+    float gain = 1.0;
+    float DAC_value = (voltOut * 4096.0f) / (3.3f * gain);
+
+    //Clamp to valid range
+    if (DAC_value < 0.0) { 
+        DAC_value = 0.0;
+    }
+
+    if (DAC_value > 4095.0) {
+        DAC_value = 4095.0;
+    }
+
+    //Cast the data to valid type and return
+    uint16_t ans = (uint16_t)(DAC_value);
+    return ans;
 }
 
 int main()
