@@ -174,7 +174,11 @@ void SPI_init()
 	// PB6: Low-speed output (00)
 	GPIOB->OSPEEDR &= ~(GPIO_OSPEEDR_OSPEED6_Msk); // ?
 
+	// Initialize chip select as high (idle)
+	GPIOB->BSRR = GPIO_BSRR_BR6;
 
+	// disable SPI while configuring
+	SPI1->CR1 &= ~SPI_CR1_SPE_Msk;
 
 	// ----
 	// CR1 config
@@ -199,15 +203,13 @@ void SPI_init()
 	// SSI = 1 = internal NSS kept high in controller mode
 	SPI1->CR1 |= SPI_CR1_SSI;
 
-	// SPE = 1 = SPI enabled
-	SPI1->CR1 |= SPI_CR1_SPE;
-
-	// ------
-	// configure CR2
-
 	// 16 bit frame
 	SPI1->CR2 &= ~SPI_CR2_DS_Msk;
 	SPI1->CR2 |= (0b1111 << SPI_CR2_DS_Pos);
+
+	// -----------
+	// re-enable SPI
+	SPI1->CR1 |= SPI_CR1_SPE;
 }
 
 void SPI_send_data(uint16_t value)
@@ -219,6 +221,9 @@ void SPI_send_data(uint16_t value)
 	// GA = 1 = 1x gain
 	// SHDN = 1 enable output
 
+	// TXE = 0: transmit buffer is not empty
+	// TXE = 1: transmit buffer is empty
+
 	// == 0b0011
 
 	uint16_t command = 0x3 << 12 | (value & 0x0FFF);
@@ -228,12 +233,21 @@ void SPI_send_data(uint16_t value)
 	// BSRR modifies ODR
 	GPIOB->BSRR = GPIO_BSRR_BR6;
 
-	// while SPI is busy
+	// wait until transmit buffer is empty
 	while (!(SPI1->SR & SPI_SR_TXE))
 		;
 
 	SPI1->DR = command;
+	
+	// wait until the transmit buffer is empty. 
+	// if we don't do this, we might check the BSY flag before
+	// any data actually entered SPI, which would be result in a 
+	// premature end of transmission
+	while (!(SPI1->SR & SPI_SR_TXE))
+		;
 
+	// after the data has exited the buffer, check that SPI is done
+	// processing it.
 	while (SPI1->SR & SPI_SR_BSY)
 		;
 
@@ -268,16 +282,16 @@ int main()
 
 	// blink the builtin LED to check that the program goes through
 	{
-		// setup
-		RCC->AHB2ENR |= RCC_AHB2ENR_GPIOAEN;
-		GPIOA->MODER &= ~GPIO_MODER_MODE5;
-		GPIOA->MODER |= GPIO_MODER_MODE5_0;
+		// // setup
+		// RCC->AHB2ENR |= RCC_AHB2ENR_GPIOAEN;
+		// GPIOA->MODER &= ~GPIO_MODER_MODE5;
+		// GPIOA->MODER |= GPIO_MODER_MODE5_0;
 	}
 
 	while (true) {
-		GPIOA->ODR ^= GPIO_ODR_OD5;
-		SPI_send_data(0b1010 1010 1010);
-		HAL_Delay(1000);
+		// GPIOA->ODR ^= GPIO_ODR_OD5;
+		// SPI_send_data(0b101010101010);
+		// HAL_Delay(1000);
 	}
 }
 
