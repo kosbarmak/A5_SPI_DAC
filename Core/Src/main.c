@@ -146,6 +146,10 @@ void SPI_init()
 	RCC->APB2ENR |= RCC_APB2ENR_SPI1EN;
 
 	// PA5 and PA7 alternative mode
+	// STM32 defaults:
+	// PA5 = SCK
+	// PA6 = MISO = POCI
+	// PA7 = MOSI = PICO
 	GPIOA->MODER &= ~(GPIO_MODER_MODE5_Msk | GPIO_MODER_MODE7_Msk);
 	GPIOA->MODER |= 0b10 << GPIO_MODER_MODE5_Pos;
 	GPIOA->MODER |= 0b10 << GPIO_MODER_MODE7_Pos;
@@ -175,7 +179,7 @@ void SPI_init()
 	GPIOB->OSPEEDR &= ~(GPIO_OSPEEDR_OSPEED6_Msk); // ?
 
 	// Initialize chip select as high (idle)
-	GPIOB->BSRR = GPIO_BSRR_BR6;
+	GPIOB->BSRR = GPIO_BSRR_BS6;
 
 	// disable SPI while configuring
 	SPI1->CR1 &= ~SPI_CR1_SPE_Msk;
@@ -290,8 +294,10 @@ int main()
 
 	while (true) {
 		// GPIOA->ODR ^= GPIO_ODR_OD5;
-		// SPI_send_data(0b101010101010);
-		// HAL_Delay(1000);
+		SPI_send_data(0b101010101010);
+		HAL_Delay(1000);
+
+		// SPI_send_data(0b)
 	}
 }
 
