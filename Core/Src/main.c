@@ -294,7 +294,9 @@ int main()
 
 	while (true) {
 		// GPIOA->ODR ^= GPIO_ODR_OD5;
-		SPI_send_data(0b111000111000);
+		SPI_send_data(0b111111111111);
+		HAL_Delay(1000);
+		SPI_send_data(0b000000000000);
 		HAL_Delay(1000);
 
 		// SPI_send_data(0b)
